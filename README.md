@@ -15,9 +15,11 @@ Follow the Google's Python Quickstart Guide [here](https://developers.google.com
 - Head ove to the youtube_api by running `cd youtube_api`
 - Make sure you use the virtual environment by running `source venv/bin/activate`
 - Run the script with `python3 search.py -h` to see help
-```usage: search.py [-h]
+```
+usage: search.py [-h]
                  [-sort_by {date,rating,relevance,title,videoCount,viewCounts}]
-                 [-max_results MAX_RESULTS] -query QUERY [--export]
+                 [-query QUERY] [-max_results MAX_RESULTS]
+                 [-related_to RELATED_TO] [--export]
 
 Find YouTube videos.
 
@@ -27,15 +29,19 @@ optional arguments:
                         The order parameter specifies the method that will be
                         used to order resources in the API response. The
                         default value is relevance.
+  -query QUERY          The q parameter specifies the query term to search
+                        for.
   -max_results MAX_RESULTS
                         The maxResults parameter specifies the maximum number
                         of items that should be returned in the result set.
                         Acceptable values are 0 to 50, inclusive. The default
                         value is 25.
-  -query QUERY          The q parameter specifies the query term to search
-                        for.
-  --export              The export parameter specifies if the results sould be
-                        exported as .csv file
+  -related_to RELATED_TO
+                        The relatedToVideoId parameter retrieves a list of
+                        videos that are related to the video that the
+                        parameter value identifies.
+  --export              The export parameter specifies if the results should
+                        be exported as .csv file
 ```
 
 ## Example usage
