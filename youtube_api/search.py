@@ -35,14 +35,23 @@ def search(query, sort_by, max_results, related_to, _type='video'):
     youtube = googleapiclient.discovery.build(
         api_service_name, api_version, credentials=credentials)
 
-    request = youtube.search().list(
-        relatedToVideoId=related_to,
-        maxResults=max_results,
-        order=sort_by,
-        part='snippet',
-        type=_type,
-        q=query
-    )
+    if related_to is not '':
+        request = youtube.search().list(
+            relatedToVideoId=related_to,
+            maxResults=max_results,
+            order=sort_by,
+            part='snippet',
+            type=_type,
+            q=query
+        )
+    else:
+        request = youtube.search().list(
+            maxResults=max_results,
+            order=sort_by,
+            part='snippet',
+            type=_type,
+            q=query
+        )
 
     response = request.execute()
     _json = json.dumps([{'videoId': v['id']['videoId'],
