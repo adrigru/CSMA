@@ -54,10 +54,5 @@ optional arguments:
 - You can export search results in to a `.csv` file with `python3 API_KEY "chemtrails" --export` 
 - Look into the csv file and find a relevant video's id
 - Put the videoId as an argument for `-related_to` flag, for instance `python3 API_KEY "chemtrails" -related_to=uOMRF7t5Vn0 --export`
-- The script will search for 25 related videos and store the comments in a `.csv` file
-- Be patient it might take a couple of minutes depending on number of results  
-
-## Remarks
-Sometimes when using the related_to parameter YouTube API returns irrelevant videos.
-Please make sure (by reading the video titles) if everything is fine.
-You can remove the comments for unrelated videoId's from the ``.csv`` file or manually select which videoIds you want to download and use `get_comments_by_vid_id` method.
+- The script will search for 25 and allow you to select the videos you are interested in
+- Be patient it might take a couple of minutes depending on number of results
