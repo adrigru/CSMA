@@ -1,52 +1,20 @@
-# -*- coding: utf-8 -*-
-
-# Sample Python code for youtube.search.list
-# See instructions for running these code samples locally:
-# https://developers.google.com/explorer-help/guides/code_samples#python
-
 import argparse
 import csv
 import json
 import os
-import pprint
 from datetime import datetime as dt
 from io import StringIO
 
 import googleapiclient.discovery
 import googleapiclient.errors
+import inquirer
 import pandas as pd
-
-
-def export(_dict, query):
-    filename = f'comments_{"_".join(query.split())}_{dt.now().isoformat()}.csv'
-    header = ['videoId', 'videoPublishedAt', 'videoTitle', 'commentId', 'replyCount', 'textOriginal',
-              'authorDisplayName', 'likeCount', 'publishedAt', 'parentId']
-    with open(os.path.join(f'{os.curdir}/results', filename), 'w+', newline='') as fp:
-        writer = csv.writer(fp, delimiter=',', quoting=csv.QUOTE_MINIMAL)
-        writer.writerow(header)
-        for item in _dict:
-            video_data = [item['videoId'], item['publishTime'], item['title']]
-            if 'comments' in item:
-                for c in item['comments']:
-                    writer.writerow(
-                        video_data + [c['commentId'], c['replyCount'], c['textOriginal'], c['authorDisplayName'],
-                                      c['likeCount'], c['publishedAt'], None])
-                    if 'replies' in c:
-                        for r in c['replies']:
-                            writer.writerow(
-                                video_data + [r['replyId'], 0, r['textOriginal'],
-                                              r['authorDisplayName'],
-                                              r['likeCount'], r['publishedAt']])
+from progress.bar import Bar
 
 
 class YouTubeAPI:
     def __init__(self, api_key):
-        # Disable OAuthlib's HTTPS verification when running locally.
-        # *DO NOT* leave this option enabled in production.
         os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-        scopes = ['https://www.googleapis.com/auth/youtube.force-ssl']
-
-        # Get credentials and create an API client
         api_service_name = 'youtube'
         api_version = 'v3'
         self.youtube = googleapiclient.discovery.build(
@@ -55,11 +23,29 @@ class YouTubeAPI:
     def get_comments_for_vids(self, query, sort_by, max_results, related_to='', _export=False):
         videos = self.search(query, sort_by, max_results, related_to=related_to)
 
-        for video in videos:
-            comments = self.get_comments_by_vid_id(video['videoId'], sort_by, replies=True)
-            if comments is not None:
-                video['comments'] = comments
+        choices = [
+            inquirer.Checkbox('videos',
+                              message='What videos dou you want to get comments from? '
+                                      '(Press -> to select and confirm with enter)',
+                              choices=[v['title'] for v in videos],
+                              ),
+        ]
 
+        selected = inquirer.prompt(choices)['videos']
+        videos = [v for v in videos if v['title'] in selected]
+
+        # Export chosen videos as .csv
+        if _export:
+            df = pd.read_json(StringIO(json.dumps(videos)), orient='records')
+            filename = f'videos_{"_".join(args.query.split())}_{args.sort_by}_{dt.now().isoformat()}.csv'
+            df.to_csv(path_or_buf=os.path.join(f'{os.curdir}/results', filename), index=False)
+
+        with Bar('Downloading comments', max=len(selected)) as bar:
+            for video in videos:
+                comments = self.get_comments_by_vid_id(video['videoId'], sort_by, replies=True)
+                if comments is not None:
+                    video['comments'] = comments
+                bar.next()
         if _export:
             return export(videos, query)
 
@@ -102,7 +88,7 @@ class YouTubeAPI:
 
     def get_replies(self, max_results, parent_id):
         request = self.youtube.comments().list(
-            part="snippet",
+            part='snippet',
             maxResults=max_results,
             parentId=parent_id
         )
@@ -120,6 +106,7 @@ class YouTubeAPI:
         if related_to is not '':
             request = self.youtube.search().list(
                 relatedToVideoId=related_to,
+                relevanceLanguage='en',
                 maxResults=max_results,
                 order=sort_by,
                 part='snippet',
@@ -139,12 +126,36 @@ class YouTubeAPI:
         results = [{'videoId': v['id']['videoId'],
                     'title': v['snippet']['title'],
                     'channelTitle': v['snippet']['channelTitle'],
-                    # 'description': v['snippet']['description'],
                     'publishTime': v['snippet']['publishTime']} for v in response['items']]
         if _export:
             return json.dumps(results)
 
         return results
+
+
+def export(_list, query):
+    filename = f'comments_{"_".join(query.split())}_{dt.now().isoformat()}.csv'
+    header = ['videoId', 'videoPublishedAt', 'videoTitle', 'commentId', 'replyCount', 'textOriginal',
+              'authorDisplayName', 'likeCount', 'publishedAt', 'parentId']
+    with open(os.path.join(f'{os.curdir}/results', filename), 'w+', newline='') as fp:
+        writer = csv.writer(fp, delimiter=',', quoting=csv.QUOTE_MINIMAL)
+        writer.writerow(header)
+        with Bar('Exporting comments', max=len(_list)) as bar:
+            for item in _list:
+                video_data = [item['videoId'], item['publishTime'], item['title']]
+                if 'comments' in item:
+                    for c in item['comments']:
+                        writer.writerow(
+                            video_data + [c['commentId'], c['replyCount'], c['textOriginal'],
+                                          c['authorDisplayName'],
+                                          c['likeCount'], c['publishedAt'], None])
+                        if 'replies' in c:
+                            for r in c['replies']:
+                                writer.writerow(
+                                    video_data + [r['replyId'], 0, r['textOriginal'],
+                                                  r['authorDisplayName'],
+                                                  r['likeCount'], r['publishedAt']])
+                bar.next()
 
 
 if __name__ == '__main__':
@@ -180,23 +191,5 @@ if __name__ == '__main__':
 
     ytb = YouTubeAPI(args.api_key)
 
-    # Search for videos related to query
-    _json = ytb.search(args.query, args.sort_by, args.max_results, related_to=args.related_to, _export=args.export)
-    pprint.pprint(_json)
-
-    # Export list of videos that YouTube returned for the given query
-    if args.export:
-        df = pd.read_json(StringIO(_json), orient='records')
-        filename = f'videos_{"_".join(args.query.split())}_{args.sort_by}_{dt.now().isoformat()}.csv'
-        df.to_csv(path_or_buf=os.path.join(f'{os.curdir}/results', filename), index=False)
-
-    # Export comments to videos related to videoId specified in related_to argument
-    if args.related_to:
-        _json = ytb.get_comments_for_vids(args.query, args.sort_by, args.max_results, related_to=args.related_to,
-                                          _export=args.export)
-    # Export comments for videos related to query
-    # Might return irrelevant comments
-    # Better specify related_to or make sure the videos found by YouTube API is what you want
-    else:
-        _json = ytb.get_comments_for_vids(args.query, args.sort_by, args.max_results, related_to='',
-                                          _export=args.export)
+    _json = ytb.get_comments_for_vids(args.query, args.sort_by, args.max_results, related_to=args.related_to,
+                                      _export=args.export)
