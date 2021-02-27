@@ -57,29 +57,42 @@ class YouTubeAPI:
             maxResults=max_results,
             moderationStatus='published',
             order=sort_by,
+            pageToken='',
             videoId=video_id
         )
+        comments = []
         try:
-            response = request.execute()
-            results = [{'commentId': c['id'],
-                        'videoId': c['snippet']['videoId'],
-                        'replyCount': c['snippet']['totalReplyCount'],
-                        'textOriginal': c['snippet']['topLevelComment']['snippet']['textOriginal'],
-                        'authorDisplayName': c['snippet']['topLevelComment']['snippet']['authorDisplayName'],
-                        'likeCount': c['snippet']['topLevelComment']['snippet']['likeCount'],
-                        'publishedAt': c['snippet']['topLevelComment']['snippet']['publishedAt']} for c in
-                       response['items']]
-
+            while True:
+                response = request.execute()
+                comments += [{'commentId': c['id'],
+                              'videoId': c['snippet']['videoId'],
+                              'replyCount': c['snippet']['totalReplyCount'],
+                              'textOriginal': c['snippet']['topLevelComment']['snippet']['textOriginal'],
+                              'authorDisplayName': c['snippet']['topLevelComment']['snippet']['authorDisplayName'],
+                              'likeCount': c['snippet']['topLevelComment']['snippet']['likeCount'],
+                              'publishedAt': c['snippet']['topLevelComment']['snippet']['publishedAt']} for c in
+                             response['items']]
+                if 'nextPageToken' not in response:
+                    break
+                nextPageToken = response['nextPageToken']
+                request = self.youtube.commentThreads().list(
+                    part='snippet',
+                    maxResults=max_results,
+                    moderationStatus='published',
+                    order=sort_by,
+                    pageToken=nextPageToken,
+                    videoId=video_id
+                )
             if replies:
-                for comment in results:
+                for comment in comments:
                     if comment['replyCount']:
                         replies = self.get_replies(max_results=100, parent_id=comment['commentId'])
                         comment['replies'] = replies
 
             if _export:
-                return json.dumps(results)
+                return json.dumps(comments)
 
-            return results
+            return comments
 
         except Exception as e:
             print(f'An exception has occurred: {e}')
@@ -136,7 +149,7 @@ class YouTubeAPI:
 def export(_list, query):
     filename = f'comments_{"_".join(query.split())}_{dt.now().isoformat()}.csv'
     header = ['videoId', 'videoPublishedAt', 'videoTitle', 'commentId', 'replyCount', 'textOriginal',
-              'authorDisplayName', 'likeCount', 'publishedAt', 'parentId']
+              'authorDisplayName', 'likeCount', 'publishedAt']
     with open(os.path.join(f'{os.curdir}/results', filename), 'w+', newline='') as fp:
         writer = csv.writer(fp, delimiter=',', quoting=csv.QUOTE_MINIMAL)
         writer.writerow(header)
